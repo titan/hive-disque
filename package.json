@@ -1,0 +1,20 @@
+{
+  "name": "hive-disque",
+  "version": "1.0.0",
+  "description": "",
+  "main": "disq.js",
+  "types": "disq.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "ssh://git@git.fengchaohuzhu.com:10022/server/hive-disque.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/hiredis": "^0.5.0"
+  }
+}
