@@ -71,14 +71,16 @@ export class Disq {
       const parts = addr.split(':');
       this.socket = createConnection(parseInt(parts[1]), parts[0]);
       this.socket.on('reply', data => {
-        if (data instanceof Error)
+        if (data instanceof Error) {
           fcb(data);
-        else
+        } else {
           scb(data);
+        }
       })
       .on('error', error => {
         fcb(error);
       });
+      return this.socket;
     }
   }
 
@@ -93,7 +95,7 @@ export class Disq {
 
   call(scb: ((dat: any) => void), fcb: ((err: Error) => void), ...params) {
     const socket = this.connect(scb, fcb);
-    socket.write.apply(this.socket, [...params]);
+    socket.write.apply(socket, [...params]);
   }
 
   ackjobAsync(jobid: string, ...jobids: string[]): Promise<any> {

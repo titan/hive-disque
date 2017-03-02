@@ -40,14 +40,17 @@ class Disq {
             const parts = addr.split(':');
             this.socket = hiredis_1.createConnection(parseInt(parts[1]), parts[0]);
             this.socket.on('reply', data => {
-                if (data instanceof Error)
+                if (data instanceof Error) {
                     fcb(data);
-                else
+                }
+                else {
                     scb(data);
+                }
             })
                 .on('error', error => {
                 fcb(error);
             });
+            return this.socket;
         }
     }
     callAsync(...params) {
@@ -60,7 +63,7 @@ class Disq {
     }
     call(scb, fcb, ...params) {
         const socket = this.connect(scb, fcb);
-        socket.write.apply(this.socket, [...params]);
+        socket.write.apply(socket, [...params]);
     }
     ackjobAsync(jobid, ...jobids) {
         return this.callAsync.apply(this, ['ackjob', jobid].concat(jobids));
