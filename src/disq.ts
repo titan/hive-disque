@@ -167,7 +167,7 @@ export class Disq {
     });
   }
 
-  getjob(queue: string, options?: GetJobOptions, scb?: ((dat: any) => any), fcb?: ((err: Error) => void)) {
+  getjob(queue: string, options?: GetJobOptions, scb?: ((jobs: GetJobResult) => any), fcb?: ((err: Error) => void)) {
     if (arguments.length < 3) {
       throw new Error("Not enough parameters in getjob");
     }
@@ -187,14 +187,18 @@ export class Disq {
 
     this.call.apply(this, [ (dat: any) => {
       const jobs = dat as Buffer[][];
-      const data = jobs.map((job: Buffer[]) => {
-        return {
-          queue: job[0].toString(),
-          id:    job[1].toString(),
-          body:  job[2],
-        }
-      });
-      _scb(data);
+      if (jobs) {
+        const data = jobs.map((job: Buffer[]) => {
+          return {
+            queue: job[0].toString(),
+            id:    job[1].toString(),
+            body:  job[2],
+          }
+        });
+        _scb(data);
+      } else {
+        _scb([]);
+      }
     }, _fcb, 'getjob' ].concat(args))
   }
 

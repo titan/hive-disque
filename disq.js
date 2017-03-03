@@ -142,14 +142,19 @@ class Disq {
         args.push('from', queue);
         this.call.apply(this, [(dat) => {
                 const jobs = dat;
-                const data = jobs.map((job) => {
-                    return {
-                        queue: job[0].toString(),
-                        id: job[1].toString(),
-                        body: job[2],
-                    };
-                });
-                _scb(data);
+                if (jobs) {
+                    const data = jobs.map((job) => {
+                        return {
+                            queue: job[0].toString(),
+                            id: job[1].toString(),
+                            body: job[2],
+                        };
+                    });
+                    _scb(data);
+                }
+                else {
+                    _scb([]);
+                }
             }, _fcb, 'getjob'].concat(args));
     }
     infoAsync() {
