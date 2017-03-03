@@ -10,7 +10,7 @@ const OPTIONS = { cycle: CYCLE };
 const disque  = new disq.Disq({ nodes: NODES });
 
 (async () => {
-  it('add and get job', async () => {
+  it('addjob', async () => {
     const addrep = await new junit.Promise((resolve, reject) => {
       disque.addjob('q1', 'j1', (x1) => {
         resolve(x1);
@@ -18,6 +18,10 @@ const disque  = new disq.Disq({ nodes: NODES });
         reject(e);
       });
     });
+    return eq(addrep.startsWith('D-'), true);
+  });
+
+  it('getjob', async () => {
     const getrep = await new junit.Promise((resolve, reject) => {
       disque.getjob('q1', (jobs) => {
         resolve(jobs);
@@ -25,11 +29,42 @@ const disque  = new disq.Disq({ nodes: NODES });
         reject(e);
       });
     });
-    return eq(addrep.startsWith('D-'), true)
-      & eq(getrep.length, 1)
+    return eq(getrep.length, 1)
       & eq(getrep[0].queue, 'q1')
       & eq(getrep[0].id.startsWith('D-'), true)
       & eq(getrep[0].body, 'j1');
+  });
+
+  it('ackjob', async () => {
+    const oldlen = await new junit.Promise((resolve, reject) => {
+      disque.qlen('q1', (job) => {
+        resolve(job);
+      }, e => {
+        reject(e);
+      });
+    });
+    const qpeekrep = await new junit.Promise((resolve, reject) => {
+      disque.qpeek('q1', 1, (job) => {
+        resolve(job);
+      }, e => {
+        reject(e);
+      });
+    });
+    const ackrep = await new junit.Promise((resolve, reject) => {
+      disque.ackjob(qpeekrep[0].id, (jobs) => {
+        resolve(jobs);
+      }, e => {
+        reject(e);
+      });
+    });
+    const newlen = await new junit.Promise((resolve, reject) => {
+      disque.qlen('q1', (job) => {
+        resolve(job);
+      }, e => {
+        reject(e);
+      });
+    });
+    return eq(oldlen - newlen, 1);
   });
 
   it.run().then(() => {

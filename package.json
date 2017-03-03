@@ -18,6 +18,7 @@
     "@types/hiredis": "^0.5.0"
   },
   "devDependencies": {
+    "hiredis": "^0.5.0",
     "junit": "^1.4.9"
   }
 }

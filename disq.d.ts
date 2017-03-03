@@ -40,5 +40,9 @@ export declare class Disq {
     getjob(queue: string, options?: GetJobOptions, scb?: ((dat: any) => any), fcb?: ((err: Error) => void)): void;
     infoAsync(): Promise<any>;
     info(scb: ((dat: any) => any), fcb: ((err: Error) => void)): void;
+    qpeek(queue: string, count: number, scb: ((dat: any) => any), fcb: ((err: Error) => void)): void;
+    qlen(queue: string, scb: ((dat: any) => any), fcb: ((err: Error) => void)): void;
+    qscan(scb: ((dat: any) => any), fcb: ((err: Error) => void)): void;
+    jscan(queue: string, scb: ((dat: any) => any), fcb: ((err: Error) => void)): void;
     end(): void;
 }

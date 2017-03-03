@@ -125,6 +125,9 @@ export class Disq {
   }
 
   addjob(queue: string, job: string | number | Buffer, options?: AddJobOptions, scb?: ((dat: any) => any), fcb?: ((err: Error) => void)) {
+    if (arguments.length < 4) {
+      throw new Error("Not enough parameters in addjob");
+    }
     const args = [];
     for (let i = 0; i < arguments.length; i++) {
       args.push(arguments[i]);
@@ -165,6 +168,9 @@ export class Disq {
   }
 
   getjob(queue: string, options?: GetJobOptions, scb?: ((dat: any) => any), fcb?: ((err: Error) => void)) {
+    if (arguments.length < 3) {
+      throw new Error("Not enough parameters in getjob");
+    }
     const _args = [];
     for (let i = 0; i < arguments.length; i++) {
       _args.push(arguments[i]);
@@ -200,6 +206,50 @@ export class Disq {
     this.call((dat: Buffer): void => {
       scb(parseInfo(dat.toString()));
     }, fcb, 'info');
+  }
+
+  qpeek(queue: string, count: number, scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
+    this.call((dat: any) => {
+      const jobs = dat as Buffer[][];
+      const data = jobs.map((job: Buffer[]) => {
+        return {
+          queue: job[0].toString(),
+          id:    job[1].toString(),
+          body:  job[2],
+        }
+      });
+      scb(data);
+    }, fcb, 'qpeek', queue, count);
+  }
+
+  qlen(queue: string, scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
+    this.call(scb, fcb, 'qlen', queue);
+  }
+
+  qscan(scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
+    this.call((dat: any) => {
+      const rep = dat as Buffer[];
+      if (rep.length === 2) {
+        const tmp = dat as Buffer[][];
+        const queues = tmp[1];
+        scb(queues.map(x => x.toString()));
+      } else {
+        fcb(new Error("Error response of qscan"));
+      }
+    }, fcb, 'qscan');
+  }
+
+  jscan(queue: string, scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
+    this.call((dat: any) => {
+      const rep = dat as Buffer[];
+      if (rep.length === 2) {
+        const tmp = dat as Buffer[][];
+        const jobs = tmp[1] as Buffer[];
+        scb(jobs.map(x => x.toString()));
+      } else {
+        fcb(new Error("Error response of qscan"));
+      }
+    }, fcb, 'jscan', 'queue', queue)
   }
 
   end() {

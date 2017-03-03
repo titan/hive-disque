@@ -88,6 +88,9 @@ class Disq {
         }
     }
     addjob(queue, job, options, scb, fcb) {
+        if (arguments.length < 4) {
+            throw new Error("Not enough parameters in addjob");
+        }
         const args = [];
         for (let i = 0; i < arguments.length; i++) {
             args.push(arguments[i]);
@@ -123,6 +126,9 @@ class Disq {
         });
     }
     getjob(queue, options, scb, fcb) {
+        if (arguments.length < 3) {
+            throw new Error("Not enough parameters in getjob");
+        }
         const _args = [];
         for (let i = 0; i < arguments.length; i++) {
             _args.push(arguments[i]);
@@ -153,6 +159,48 @@ class Disq {
         this.call((dat) => {
             scb(parseInfo(dat.toString()));
         }, fcb, 'info');
+    }
+    qpeek(queue, count, scb, fcb) {
+        this.call((dat) => {
+            const jobs = dat;
+            const data = jobs.map((job) => {
+                return {
+                    queue: job[0].toString(),
+                    id: job[1].toString(),
+                    body: job[2],
+                };
+            });
+            scb(data);
+        }, fcb, 'qpeek', queue, count);
+    }
+    qlen(queue, scb, fcb) {
+        this.call(scb, fcb, 'qlen', queue);
+    }
+    qscan(scb, fcb) {
+        this.call((dat) => {
+            const rep = dat;
+            if (rep.length === 2) {
+                const tmp = dat;
+                const queues = tmp[1];
+                scb(queues.map(x => x.toString()));
+            }
+            else {
+                fcb(new Error("Error response of qscan"));
+            }
+        }, fcb, 'qscan');
+    }
+    jscan(queue, scb, fcb) {
+        this.call((dat) => {
+            const rep = dat;
+            if (rep.length === 2) {
+                const tmp = dat;
+                const jobs = tmp[1];
+                scb(jobs.map(x => x.toString()));
+            }
+            else {
+                fcb(new Error("Error response of qscan"));
+            }
+        }, fcb, 'jscan', 'queue', queue);
     }
     end() {
         if (this.socket) {
