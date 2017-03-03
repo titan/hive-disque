@@ -30,7 +30,7 @@ class Disq {
             });
         }
     }
-    connect(scb, fcb) {
+    connect() {
         if (this.socket) {
             return this.socket;
         }
@@ -41,15 +41,16 @@ class Disq {
             this.socket = hiredis_1.createConnection(parseInt(parts[1]), parts[0]);
             this.socket.on('reply', data => {
                 if (data instanceof Error) {
-                    fcb(data);
+                    this._operations.shift()[1](data);
                 }
                 else {
-                    scb(data);
+                    this._operations.shift()[0](data);
                 }
             })
                 .on('error', error => {
-                fcb(error);
+                this._operations.shift()[1](error);
             });
+            this._operations = [];
             return this.socket;
         }
     }
@@ -62,7 +63,8 @@ class Disq {
         });
     }
     call(scb, fcb, ...params) {
-        const socket = this.connect(scb, fcb);
+        const socket = this.connect();
+        this._operations.push([scb, fcb]);
         socket.write.apply(socket, [...params]);
     }
     ackjobAsync(jobid, ...jobids) {
@@ -141,8 +143,8 @@ class Disq {
                         body: job[2],
                     };
                 });
-                scb(data);
-            }, fcb, 'getjob'].concat(args));
+                _scb(data);
+            }, _fcb, 'getjob'].concat(args));
     }
     infoAsync() {
         return this.callAsync('info').then(parseInfo);

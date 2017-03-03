@@ -62,7 +62,7 @@ export class Disq {
     }
   }
 
-  connect(scb: ((dat: any) => void), fcb: ((err: Error) => void)): net.Socket {
+  connect(): net.Socket {
     if (this.socket) {
       return this.socket;
     } else {
@@ -72,14 +72,15 @@ export class Disq {
       this.socket = createConnection(parseInt(parts[1]), parts[0]);
       this.socket.on('reply', data => {
         if (data instanceof Error) {
-          fcb(data);
+          this._operations.shift()[1](data);
         } else {
-          scb(data);
+          this._operations.shift()[0](data);
         }
       })
       .on('error', error => {
-        fcb(error);
+        this._operations.shift()[1](error);
       });
+      this._operations = [];
       return this.socket;
     }
   }
@@ -93,8 +94,9 @@ export class Disq {
       });
   }
 
-  call(scb: ((dat: any) => void), fcb: ((err: Error) => void), ...params) {
-    const socket = this.connect(scb, fcb);
+  call(scb: ((dat: any) => any), fcb: ((err: Error) => void), ...params) {
+    const socket = this.connect();
+    this._operations.push([ scb, fcb ]);
     socket.write.apply(socket, [...params]);
   }
 
@@ -102,11 +104,11 @@ export class Disq {
     return this.callAsync.apply(this, [ 'ackjob', jobid ].concat(jobids));
   }
 
-  ackjob(jobid: string, scb: ((dat: any) => void), fcb: ((err: Error) => void)) {
+  ackjob(jobid: string, scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
     this.call(scb, fcb, 'ackjob', jobid);
   }
 
-  ackjobs(jobids: string[], scb: ((dat: any) => void), fcb: ((err: Error) => void)) {
+  ackjobs(jobids: string[], scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
     this.call.apply(this, [scb, fcb, 'ackjob'].concat(jobids));
   }
 
@@ -122,7 +124,7 @@ export class Disq {
     }
   }
 
-  addjob(queue: string, job: string | number | Buffer, options?: AddJobOptions, scb?: ((dat: any) => void), fcb?: ((err: Error) => void)) {
+  addjob(queue: string, job: string | number | Buffer, options?: AddJobOptions, scb?: ((dat: any) => any), fcb?: ((err: Error) => void)) {
     const args = [];
     for (let i = 0; i < arguments.length; i++) {
       args.push(arguments[i]);
@@ -162,7 +164,7 @@ export class Disq {
     });
   }
 
-  getjob(queue: string, options?: GetJobOptions, scb?, fcb?) {
+  getjob(queue: string, options?: GetJobOptions, scb?: ((dat: any) => any), fcb?: ((err: Error) => void)) {
     const _args = [];
     for (let i = 0; i < arguments.length; i++) {
       _args.push(arguments[i]);
@@ -186,15 +188,15 @@ export class Disq {
           body:  job[2],
         }
       });
-      scb(data);
-    }, fcb, 'getjob' ].concat(args))
+      _scb(data);
+    }, _fcb, 'getjob' ].concat(args))
   }
 
   infoAsync(): Promise<any> {
     return this.callAsync('info').then(parseInfo);
   }
 
-  info(scb, fcb) {
+  info(scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
     this.call((dat: Buffer): void => {
       scb(parseInfo(dat.toString()));
     }, fcb, 'info');
