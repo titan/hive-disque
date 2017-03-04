@@ -1,5 +1,5 @@
 import * as net from "net";
-import { createConnection } from "hiredis";
+import { Reader } from "hiredis";
 
 export interface Config {
   nodes: string[];
@@ -25,6 +25,57 @@ export interface GetJobResult {
   queue: string;
   id: string;
   body: string | number | Buffer;
+}
+
+const bufStar = new Buffer("*", "ascii");
+const bufDollar = new Buffer("$", "ascii");
+const bufCrlf = new Buffer("\r\n", "ascii");
+
+function writeCommand(...params: any[]) {
+  const args = arguments;
+  let bufLen = new Buffer(String(args.length), "ascii"),
+    parts = [bufStar, bufLen, bufCrlf],
+    size = 3 + bufLen.length;
+
+  for (let arg of args) {
+    if (!Buffer.isBuffer(arg))
+      arg = new Buffer(String(arg));
+
+    bufLen = new Buffer(String(arg.length), "ascii");
+    parts = parts.concat([
+      bufDollar, bufLen, bufCrlf,
+      arg, bufCrlf
+    ]);
+    size += 5 + bufLen.length + arg.length;
+  }
+
+  return Buffer.concat(parts, size);
+}
+
+function createConnection(port: number, host: string): net.Socket {
+  const s = net.createConnection(port || 6379, host);
+  let r = new Reader({ return_buffers: true });
+  const _write = s.write;
+
+  s.write = function() {
+    const data = writeCommand.apply(this, arguments);
+    return _write.call(s, data);
+  }
+
+  s.on("data", function(data) {
+    let reply;
+    r.feed(data);
+    try {
+      while((reply = r.get()) !== undefined)
+        s.emit("reply", reply);
+    } catch(err) {
+      r = null;
+      s.emit("error", err);
+      s.destroy();
+    }
+  });
+
+  return s;
 }
 
 export class Disq {
@@ -72,13 +123,22 @@ export class Disq {
       this.socket = createConnection(parseInt(parts[1]), parts[0]);
       this.socket.on('reply', data => {
         if (data instanceof Error) {
-          this._operations.shift()[1](data);
+          const cb = this._operations.shift()[1];
+          if (cb) {
+            cb(data);
+          }
         } else {
-          this._operations.shift()[0](data);
+          const cb = this._operations.shift()[0];
+          if (cb) {
+            cb(data);
+          }
         }
       })
       .on('error', error => {
-        this._operations.shift()[1](error);
+        const cb = this._operations.shift()[1];
+        if (cb) {
+          cb(error);
+        }
       });
       this._operations = [];
       return this.socket;
@@ -185,7 +245,7 @@ export class Disq {
 
     args.push('from', queue);
 
-    this.call.apply(this, [ (dat: any) => {
+    this.call.apply(this, [ _scb ? (dat: any) => {
       const jobs = dat as Buffer[][];
       if (jobs) {
         const data = jobs.map((job: Buffer[]) => {
@@ -199,7 +259,7 @@ export class Disq {
       } else {
         _scb([]);
       }
-    }, _fcb, 'getjob' ].concat(args))
+    } : scb, _fcb, 'getjob' ].concat(args));
   }
 
   infoAsync(): Promise<any> {
@@ -207,23 +267,27 @@ export class Disq {
   }
 
   info(scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
-    this.call((dat: Buffer): void => {
+    this.call(scb ? (dat: Buffer): void => {
       scb(parseInfo(dat.toString()));
-    }, fcb, 'info');
+    } : scb, fcb, 'info');
   }
 
   qpeek(queue: string, count: number, scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
-    this.call((dat: any) => {
+    this.call(scb ? (dat: any) => {
       const jobs = dat as Buffer[][];
-      const data = jobs.map((job: Buffer[]) => {
-        return {
-          queue: job[0].toString(),
-          id:    job[1].toString(),
-          body:  job[2],
-        }
-      });
-      scb(data);
-    }, fcb, 'qpeek', queue, count);
+      if (jobs) {
+        const data = jobs.map((job: Buffer[]) => {
+          return {
+            queue: job[0].toString(),
+            id:    job[1].toString(),
+            body:  job[2],
+          }
+        });
+        scb(data);
+      } else {
+        scb([]);
+      }
+    } : scb, fcb, 'qpeek', queue, count);
   }
 
   qlen(queue: string, scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
@@ -231,29 +295,33 @@ export class Disq {
   }
 
   qscan(scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
-    this.call((dat: any) => {
+    this.call(scb ? (dat: any) => {
       const rep = dat as Buffer[];
       if (rep.length === 2) {
         const tmp = dat as Buffer[][];
         const queues = tmp[1];
         scb(queues.map(x => x.toString()));
       } else {
-        fcb(new Error("Error response of qscan"));
+        if (fcb) {
+          fcb(new Error("Error response of qscan"));
+        }
       }
-    }, fcb, 'qscan');
+    } : scb, fcb, 'qscan');
   }
 
   jscan(queue: string, scb: ((dat: any) => any), fcb: ((err: Error) => void)) {
-    this.call((dat: any) => {
+    this.call(scb ? (dat: any) => {
       const rep = dat as Buffer[];
       if (rep.length === 2) {
         const tmp = dat as Buffer[][];
         const jobs = tmp[1] as Buffer[];
         scb(jobs.map(x => x.toString()));
       } else {
-        fcb(new Error("Error response of qscan"));
+        if (fcb) {
+          fcb(new Error("Error response of qscan"));
+        }
       }
-    }, fcb, 'jscan', 'queue', queue)
+    } : scb, fcb, 'jscan', 'queue', queue)
   }
 
   end() {

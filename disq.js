@@ -1,5 +1,47 @@
 "use strict";
+const net = require("net");
 const hiredis_1 = require("hiredis");
+const bufStar = new Buffer("*", "ascii");
+const bufDollar = new Buffer("$", "ascii");
+const bufCrlf = new Buffer("\r\n", "ascii");
+function writeCommand(...params) {
+    const args = arguments;
+    let bufLen = new Buffer(String(args.length), "ascii"), parts = [bufStar, bufLen, bufCrlf], size = 3 + bufLen.length;
+    for (let arg of args) {
+        if (!Buffer.isBuffer(arg))
+            arg = new Buffer(String(arg));
+        bufLen = new Buffer(String(arg.length), "ascii");
+        parts = parts.concat([
+            bufDollar, bufLen, bufCrlf,
+            arg, bufCrlf
+        ]);
+        size += 5 + bufLen.length + arg.length;
+    }
+    return Buffer.concat(parts, size);
+}
+function createConnection(port, host) {
+    const s = net.createConnection(port || 6379, host);
+    let r = new hiredis_1.Reader({ return_buffers: true });
+    const _write = s.write;
+    s.write = function () {
+        const data = writeCommand.apply(this, arguments);
+        return _write.call(s, data);
+    };
+    s.on("data", function (data) {
+        let reply;
+        r.feed(data);
+        try {
+            while ((reply = r.get()) !== undefined)
+                s.emit("reply", reply);
+        }
+        catch (err) {
+            r = null;
+            s.emit("error", err);
+            s.destroy();
+        }
+    });
+    return s;
+}
 class Disq {
     constructor(config) {
         if (config instanceof Function)
@@ -15,7 +57,7 @@ class Disq {
             return Promise.resolve(this.config()).then(config => {
                 const addr = config.nodes[0];
                 const parts = addr.split(':');
-                this.socket = hiredis_1.createConnection(parseInt(parts[1]), parts[0]);
+                this.socket = createConnection(parseInt(parts[1]), parts[0]);
                 this.socket.on('reply', data => {
                     if (data instanceof Error)
                         this._operations.shift()[1](data);
@@ -38,17 +80,26 @@ class Disq {
             const config = this.config();
             const addr = config.nodes[0];
             const parts = addr.split(':');
-            this.socket = hiredis_1.createConnection(parseInt(parts[1]), parts[0]);
+            this.socket = createConnection(parseInt(parts[1]), parts[0]);
             this.socket.on('reply', data => {
                 if (data instanceof Error) {
-                    this._operations.shift()[1](data);
+                    const cb = this._operations.shift()[1];
+                    if (cb) {
+                        cb(data);
+                    }
                 }
                 else {
-                    this._operations.shift()[0](data);
+                    const cb = this._operations.shift()[0];
+                    if (cb) {
+                        cb(data);
+                    }
                 }
             })
                 .on('error', error => {
-                this._operations.shift()[1](error);
+                const cb = this._operations.shift()[1];
+                if (cb) {
+                    cb(error);
+                }
             });
             this._operations = [];
             return this.socket;
@@ -140,7 +191,7 @@ class Disq {
         const keys = Object.keys(opts || {});
         const args = keys.map(pairify(opts)).reduce((accum, pair) => accum.concat(pair), []);
         args.push('from', queue);
-        this.call.apply(this, [(dat) => {
+        this.call.apply(this, [_scb ? (dat) => {
                 const jobs = dat;
                 if (jobs) {
                     const data = jobs.map((job) => {
@@ -155,34 +206,39 @@ class Disq {
                 else {
                     _scb([]);
                 }
-            }, _fcb, 'getjob'].concat(args));
+            } : scb, _fcb, 'getjob'].concat(args));
     }
     infoAsync() {
         return this.callAsync('info').then(parseInfo);
     }
     info(scb, fcb) {
-        this.call((dat) => {
+        this.call(scb ? (dat) => {
             scb(parseInfo(dat.toString()));
-        }, fcb, 'info');
+        } : scb, fcb, 'info');
     }
     qpeek(queue, count, scb, fcb) {
-        this.call((dat) => {
+        this.call(scb ? (dat) => {
             const jobs = dat;
-            const data = jobs.map((job) => {
-                return {
-                    queue: job[0].toString(),
-                    id: job[1].toString(),
-                    body: job[2],
-                };
-            });
-            scb(data);
-        }, fcb, 'qpeek', queue, count);
+            if (jobs) {
+                const data = jobs.map((job) => {
+                    return {
+                        queue: job[0].toString(),
+                        id: job[1].toString(),
+                        body: job[2],
+                    };
+                });
+                scb(data);
+            }
+            else {
+                scb([]);
+            }
+        } : scb, fcb, 'qpeek', queue, count);
     }
     qlen(queue, scb, fcb) {
         this.call(scb, fcb, 'qlen', queue);
     }
     qscan(scb, fcb) {
-        this.call((dat) => {
+        this.call(scb ? (dat) => {
             const rep = dat;
             if (rep.length === 2) {
                 const tmp = dat;
@@ -190,12 +246,14 @@ class Disq {
                 scb(queues.map(x => x.toString()));
             }
             else {
-                fcb(new Error("Error response of qscan"));
+                if (fcb) {
+                    fcb(new Error("Error response of qscan"));
+                }
             }
-        }, fcb, 'qscan');
+        } : scb, fcb, 'qscan');
     }
     jscan(queue, scb, fcb) {
-        this.call((dat) => {
+        this.call(scb ? (dat) => {
             const rep = dat;
             if (rep.length === 2) {
                 const tmp = dat;
@@ -203,9 +261,11 @@ class Disq {
                 scb(jobs.map(x => x.toString()));
             }
             else {
-                fcb(new Error("Error response of qscan"));
+                if (fcb) {
+                    fcb(new Error("Error response of qscan"));
+                }
             }
-        }, fcb, 'jscan', 'queue', queue);
+        } : scb, fcb, 'jscan', 'queue', queue);
     }
     end() {
         if (this.socket) {
