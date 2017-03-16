@@ -37,7 +37,7 @@ export declare class Disq {
     addjobAsync(queue: string, job: string | number | Buffer, options?: AddJobOptions): Promise<any>;
     addjob(queue: string, job: string | number | Buffer, options?: AddJobOptions, scb?: ((dat: any) => any), fcb?: ((err: Error) => void)): void;
     getjobAsync(queue: string, options?: GetJobOptions): Promise<GetJobResult[]>;
-    getjob(queue: string, options?: GetJobOptions, scb?: ((jobs: GetJobResult) => any), fcb?: ((err: Error) => void)): void;
+    getjob(queue: string, options?: GetJobOptions, scb?: ((jobs: GetJobResult[]) => any), fcb?: ((err: Error) => void)): void;
     infoAsync(): Promise<any>;
     info(scb: ((dat: any) => any), fcb: ((err: Error) => void)): void;
     qpeek(queue: string, count: number, scb: ((dat: any) => any), fcb: ((err: Error) => void)): void;

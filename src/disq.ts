@@ -227,7 +227,7 @@ export class Disq {
     });
   }
 
-  getjob(queue: string, options?: GetJobOptions, scb?: ((jobs: GetJobResult) => any), fcb?: ((err: Error) => void)) {
+  getjob(queue: string, options?: GetJobOptions, scb?: ((jobs: GetJobResult[]) => any), fcb?: ((err: Error) => void)) {
     if (arguments.length < 3) {
       throw new Error("Not enough parameters in getjob");
     }

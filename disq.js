@@ -1,4 +1,5 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 const net = require("net");
 const hiredis_1 = require("hiredis");
 const bufStar = new Buffer("*", "ascii");
