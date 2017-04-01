@@ -106,6 +106,7 @@ export class Disq {
         })
         .on('error', error => {
           this._operations.shift()[1](error);
+          this.socket = null;
         });
         this._operations = [];
         return this.socket;
@@ -139,6 +140,7 @@ export class Disq {
         if (cb) {
           cb(error);
         }
+        this.socket = null;
       });
       this._operations = [];
       return this.socket;
