@@ -75,6 +75,13 @@ function createConnection(port: number, host: string): net.Socket {
     }
   });
 
+  s.on("close", function (had_error) {
+    if (!had_error) {
+      const error = new Error();
+      error.message = `connect ECONNREFUSED ${host}:${port}`;
+      s.emit("error", error);
+    }
+  });
   return s;
 }
 
