@@ -106,13 +106,19 @@ export class Disq {
         const parts = addr.split(':');
         this.socket = createConnection(parseInt(parts[1]), parts[0]);
         this.socket.on('reply', data => {
-          if (data instanceof Error)
-            this._operations.shift()[1](data);
-          else
-            this._operations.shift()[0](data);
+          const operation = this._operations.shift();
+          if (operation) {
+            if (data instanceof Error)
+              operation[1](data);
+            else
+              operation[0](data);
+          }
         })
         .on('error', error => {
-          this._operations.shift()[1](error);
+          const operation = this._operations.shift();
+          if (operation) {
+            operation[1](error);
+          }
           this.socket = null;
         });
         this._operations = [];
@@ -131,21 +137,30 @@ export class Disq {
       this.socket = createConnection(parseInt(parts[1]), parts[0]);
       this.socket.on('reply', data => {
         if (data instanceof Error) {
-          const cb = this._operations.shift()[1];
-          if (cb) {
-            cb(data);
+          const operation = this._operations.shift();
+          if (operation) {
+            const cb = operation[1];
+            if (cb) {
+              cb(data);
+            }
           }
         } else {
-          const cb = this._operations.shift()[0];
-          if (cb) {
-            cb(data);
+          const operation = this._operations.shift();
+          if (operation) {
+            const cb = operation[0];
+            if (cb) {
+              cb(data);
+            }
           }
         }
       })
       .on('error', error => {
-        const cb = this._operations.shift()[1];
-        if (cb) {
-          cb(error);
+        const operation = this._operations.shift();
+        if (operation) {
+          const cb = operation[1];
+          if (cb) {
+            cb(error);
+          }
         }
         this.socket = null;
       });
